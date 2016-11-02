@@ -1,0 +1,185 @@
+# https://www.youtube.com/watch?v=bRgHP8C5b9k
+# https://www.eeweb.com/project/mohd_kashif/controlling-of-stepper-motors-using-raspberry-pi
+
+# TP: 31102016
+
+import time
+import RPi.GPIO as GPIO
+from threading import Thread
+import matplotlib.pyplot as plt
+import pylab
+from pylab import arange,pi,sin,cos,sqrt
+
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(16, GPIO.OUT) # Pin 16: step
+GPIO.setup(18, GPIO.OUT) # Pin 18: direction
+Stepper1 =GPIO.PWM(16,500) # Frequency for the step pin to send a pulse(here: 500 Hz) #x
+#Stepper2 =GPIO.PWM(16,500) # Frequency for the step pin to send a pulse(here: 500 Hz) #y
+#Stepper3 =GPIO.PWM(16,500) # Frequency for the step pin to send a pulse(here: 500 Hz) #z
+
+Xamplitude_cm = 1
+Yamplitude_cm = 2
+Period_s = 5
+
+specification_stepper_motor = 0.1 # cm/step       ####################################
+
+
+def drange(start, stop, step): # function to enable decimal range() step values
+	s = start
+	while s < stop:
+		yield s
+		s += step
+		s = round(s * 1000)/1000
+
+def create_sinus_motion_curve(x_amplitude_cm, y_amplitude_cm, period_s):
+	dt = 0.1 # time interval between the positions in seconds
+	time_s = drange(0, period_s, dt)
+	omega = 2 * pi / period_s
+	
+	# start values:
+	x1 = x_amplitude_cm * sin(omega * 0)
+	y1 = y_amplitude_cm * sin(omega * 0)
+	z1 = y1/2
+	i = 0
+	
+	position_x_cm = [x1]
+	position_y_cm = [y1]
+	position_z_cm = [z1]
+	time_ms = [0]
+	
+	for Time in time_s:
+		i +=1
+		
+		position_x_cm.append( round( x_amplitude_cm * sin(omega * Time) * 100) /100) # appends the next x position
+		position_y_cm.append( round( y_amplitude_cm * sin(omega * Time) * 100) /100)
+		position_z_cm.append( round( y_amplitude_cm * sin(omega * Time) * 100) /100 /2) #  z = y/2
+		time_ms.append( round(Time *1000)) # s -> ms
+		
+		# check velocity for x,y and z direction:
+		
+		x2 = position_x_cm[-1]
+		vx = abs(x2-x1)/dt
+		if vx > 5.0:
+			print('Warning: Decrease v_x for position')
+			print(i)
+		
+		y2 = position_y_cm[-1]
+		vy = abs(y2-y1)/dt
+		if vy > 5.0:
+			print('Warning: Decrease v_y for position')
+			print(i)
+		
+		z2 = position_z_cm[-1]
+		vz = abs(z2-z1)/dt
+		if vz > 5.0:
+			print('Warning: Decrease v_z for position')
+			print(i)
+		
+		x1 = position_x_cm[-1]
+		y1 = position_y_cm[-1]
+		z1 = position_z_cm[-1]
+	
+	# PLOT:
+	time_s = [i/1000 for i in time_ms]
+	plt.title('Motion curves')
+	plt.xlabel('Time [s]')
+	plt.ylabel('Amplitude [cm]')
+	plt.plot(time_s, position_x_cm, 'b-o',label="x")
+	plt.plot(time_s, position_y_cm, 'r-s', label="y")
+	plt.plot(time_s, position_z_cm, 'k-<', label="z")
+	plt.legend( loc='upper right' )
+	plt.grid(True)
+	plt.ylim(-2.2,2.2)
+	plt.show()
+	
+	return(position_x_cm, position_y_cm, position_z_cm, time_ms)
+
+
+def SpinMotorx(stepper_motorx, directionx, num_stepsx, time_sleepx):
+	GPIO.output(18,directionx) # direction: True or false ( = high or low -> direction: counterclock- or clockwise)
+	while num_stepsx > 0:
+		stepper_motorx.start(1)
+		time.sleep(time_sleepx) # delay
+		num_stepsx -= 1
+	stepper_motorx.stop() # motor stops spinning/ pulse ends
+	GPIO.cleanup()
+	return True
+
+def SpinMotory(stepper_motory, directiony, num_stepsy, time_sleepy):
+	GPIO.output(18,directiony) # direction: True or false ( = high or low -> direction: counterclock- or clockwise)
+	while num_stepsy > 0:
+		stepper_motory.start(1)
+		time.sleep(time_sleepy) # delay
+		num_stepsy -= 1
+	stepper_motory.stop() # motor stops spinning/ pulse ends
+	GPIO.cleanup()
+	return True
+
+def SpinMotorz(stepper_motorz, directionz, num_stepsz, time_sleepz):
+	GPIO.output(18,directionz) # direction: True or false ( = high or low -> direction: counterclock- or clockwise)
+	while num_stepsz > 0:
+		stepper_motorz.start(1)
+		time.sleep(time_sleepz) # delay
+		num_stepsz -= 1
+	stepper_motorz.stop() # motor stops spinning/ pulse ends
+	GPIO.cleanup()
+	return True
+
+def motion_curve_x(x_cm, time_ms):
+	timerx = 0
+	while timerx <= 15*60:   # Loop for 15min
+		for tx_idx, tx in enumerate(time_ms):
+			if tx_idx >= 1:
+				# direction:
+				if x_cm(tx_idx)-x_cm(tx_idx - 1) > 0:
+				Directionx = True ############################################## counterclockwise
+				else:
+				Directionx = False ############################################# clockwise
+				# num_steps:
+				Num_stepsx = abs(x_cm(tx_idx)-x_cm(tx_idx - 1)) / specification_stepper_motor
+				# time_sleep:
+				Time_sleepx = (time_ms(tx_idx) - time_ms(tx_idx - 1))/1000
+				SpinMotorx(Stepper1, Directionx, Num_stepsx, Time_sleepx)
+		timerx += max(time_ms/1000)
+
+def motion_curve_y(y_cm, time_ms):
+	timery = 0
+	while timery <= 15*60:   # Loop for 15min
+		for ty_idx, ty in enumerate(time_ms):
+			if ty_idx >= 1:
+				# direction:
+				if y_cm(ty_idx)-y_cm(ty_idx - 1) > 0:
+				Directiony = True ############################################## counterclockwise
+				else:
+				Directiony = False ############################################# clockwise
+				# num_steps:
+				Num_stepsy = abs(y_cm(ty_idx)-y_cm(ty_idx - 1)) / specification_stepper_motor
+				# time_sleep:
+				Time_sleepy = (time_ms(ty_idx) - time_ms(ty_idx - 1))/1000
+				SpinMotory(Stepper2, Directiony, Num_stepsy, Time_sleepy)
+		timery += max(time_ms/1000)
+
+def motion_curve_z(z_cm, time_ms):
+	timerz = 0
+	while timerz <= 15*60:   # Loop for 15min
+		for tz_idx, tz in enumerate(time_ms):
+			if tz_idx >= 1:
+				# direction:
+				if z_cm(tz_idx)-z_cm(tz_idx - 1) > 0:
+				Directionz = True ############################################## counterclockwise
+				else:
+				Directionz = False ############################################# clockwise
+				# num_steps:
+				Num_stepsz = abs(z_cm(tz_idx)-z_cm(tz_idx - 1)) / specification_stepper_motor
+				# time_sleep:
+				Time_sleepz = (time_ms(tz_idx) - time_ms(tz_idx - 1))/1000
+				SpinMotorz(Stepper3, Directionz, Num_stepsz, Time_sleepz)
+		timerz += max(time_ms/1000)
+
+# Main:
+x_cm, y_cm, z_cm, t_ms = create_sinus_motion_curve(Xamplitude_cm, Yamplitude_cm, Period_s)
+threads = [Thread(target=motion_curve_x, args=(x_cm,t_ms)),Thread(target=motion_curve_y, args=(y_cm,t_ms)),Thread(target=motion_curve_z, args=(z_cm,t_ms))]
+
+for Th in threads: Th.start()
+for Th in threads: Th.join()
+print ('All threads done!')
