@@ -72,11 +72,12 @@ def LEFT_TURN(deg):
 
 #MAIN #########################
 
-
-RIGHT_TURN(90)
-LEFT_TURN(90)
-RIGHT_TURN(360)
-GPIO_SETUP(0,0,0,0)
+try:
+   while 1:
+	RIGHT_TURN(90)
+	LEFT_TURN(90)
+	RIGHT_TURN(360)
+	GPIO_SETUP(0,0,0,0)
 
        
 except KeyboardInterrupt:
